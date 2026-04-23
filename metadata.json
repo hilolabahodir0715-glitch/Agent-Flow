@@ -1,0 +1,6 @@
+{
+  "name": "AgentFlow",
+  "description": "Мобильное приложение для торговых агентов: управление клиентами, заказами и платежами.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

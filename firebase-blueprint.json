@@ -1,0 +1,106 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "A customer of the trading agent",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name or company name" },
+        "address": { "type": "string", "description": "Delivery address" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "balance": { "type": "number", "description": "Current balance (negative means debt)" },
+        "agentId": { "type": "string", "description": "ID of the agent managing this client" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "agentId"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Information about a product in the catalog",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Product name" },
+        "price": { "type": "number", "description": "Unit price" },
+        "unit": { "type": "string", "description": "Unit of measurement (e.g., kg, pcs)" },
+        "stock": { "type": "number", "description": "Current stock quantity" },
+        "agentId": { "type": "string", "description": "The agent who added this product" }
+      },
+      "required": ["name", "price", "agentId", "stock"]
+    },
+    "Receipt": {
+      "title": "Receipt",
+      "description": "A receipt of products from a warehouse",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "source": { "type": "string" },
+        "agentId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "quantity", "agentId", "source"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A sales order placed with a client",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string", "description": "Reference to the client" },
+        "agentId": { "type": "string", "description": "The agent who took the order" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "name": { "type": "string" },
+              "quantity": { "type": "number" },
+              "price": { "type": "number" }
+            }
+          }
+        },
+        "totalAmount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "agentId", "items", "totalAmount"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A payment received from a client",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "agentId": { "type": "string" },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["cash", "transfer", "bill"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" }
+      },
+      "required": ["clientId", "agentId", "amount", "method"]
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "A reminder for the agent about a client (e.g., debt collection)",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "agentId": { "type": "string" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "agentId", "dueDate", "note", "completed"]
+    }
+  },
+  "firestore": {
+    "clients": { "schema": "Client", "description": "Collection of clients" },
+    "products": { "schema": "Product", "description": "Product catalog" },
+    "orders": { "schema": "Order", "description": "Sales history" },
+    "payments": { "schema": "Payment", "description": "Payment history" },
+    "receipts": { "schema": "Receipt", "description": "Receipts from warehouses" },
+    "reminders": { "schema": "Reminder", "description": "Debt collection or other reminders" }
+  }
+}

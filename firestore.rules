@@ -1,0 +1,155 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definition
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAgent(agentId) {
+      return isSignedIn() && request.auth.uid == agentId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. Client Validation
+    function isValidClient(data) {
+      return data.keys().hasAll(['name', 'agentId']) &&
+             data.keys().size() <= 6 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.agentId == request.auth.uid &&
+             (data.get('phone', '') is string) &&
+             (data.get('address', '') is string) &&
+             (data.get('balance', 0) is number);
+    }
+
+    match /clients/{clientId} {
+      allow get: if isAgent(existing().agentId) && isValidId(clientId);
+      allow list: if isSignedIn() && resource.data.agentId == request.auth.uid;
+      allow create: if isSignedIn() && isValidClient(incoming()) && isValidId(clientId);
+      allow update: if isAgent(existing().agentId) && isValidClient(incoming()) &&
+                    incoming().agentId == existing().agentId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'address', 'balance']);
+      allow delete: if isAgent(existing().agentId);
+    }
+
+    // 2. Product Validation
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'price', 'agentId']) &&
+             data.keys().size() <= 5 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.price is number && data.price >= 0 &&
+             data.agentId == request.auth.uid &&
+             (data.get('stock', 0) is number);
+    }
+
+    match /products/{productId} {
+      allow get: if isAgent(existing().agentId) && isValidId(productId);
+      allow list: if isSignedIn() && resource.data.agentId == request.auth.uid;
+      allow create: if isSignedIn() && isValidProduct(incoming()) && isValidId(productId);
+      allow update: if isAgent(existing().agentId) && isValidProduct(incoming()) &&
+                    incoming().agentId == existing().agentId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'price', 'unit', 'stock']);
+      allow delete: if isAgent(existing().agentId);
+    }
+
+    // 2.1 Receipt Validation
+    function isValidReceipt(data) {
+      return data.keys().hasAll(['productId', 'quantity', 'agentId', 'source', 'createdAt']) &&
+             data.keys().size() <= 7 &&
+             data.productId is string &&
+             data.quantity is number && data.quantity > 0 &&
+             data.agentId == request.auth.uid &&
+             data.source is string &&
+             data.createdAt == request.time;
+    }
+
+    match /receipts/{receiptId} {
+      allow get: if isAgent(existing().agentId) && isValidId(receiptId);
+      allow list: if isSignedIn() && resource.data.agentId == request.auth.uid;
+      allow create: if isSignedIn() && isValidReceipt(incoming()) && isValidId(receiptId) &&
+                    exists(/databases/$(database)/documents/products/$(incoming().productId));
+      allow update: if false;
+      allow delete: if isAgent(existing().agentId);
+    }
+
+    // 3. Order Validation
+    function isValidOrder(data) {
+      return data.keys().hasAll(['clientId', 'agentId', 'items', 'totalAmount', 'createdAt']) &&
+             data.keys().size() <= 6 &&
+             data.clientId is string &&
+             data.agentId == request.auth.uid &&
+             data.items is list && data.items.size() > 0 && data.items.size() <= 50 &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.createdAt == request.time;
+    }
+
+    match /orders/{orderId} {
+      allow get: if isAgent(existing().agentId) && isValidId(orderId);
+      allow list: if isSignedIn() && resource.data.agentId == request.auth.uid;
+      allow create: if isSignedIn() && isValidOrder(incoming()) && isValidId(orderId) &&
+                    exists(/databases/$(database)/documents/clients/$(incoming().clientId));
+      // Orders are generally immutable
+      allow update: if false; 
+      allow delete: if isAgent(existing().agentId);
+    }
+
+    // 4. Payment Validation
+    function isValidPayment(data) {
+      return data.keys().hasAll(['clientId', 'agentId', 'amount', 'method', 'createdAt']) &&
+             data.keys().size() <= 6 &&
+             data.clientId is string &&
+             data.agentId == request.auth.uid &&
+             data.amount is number && data.amount > 0 &&
+             data.method in ['cash', 'transfer', 'bill'] &&
+             data.createdAt == request.time;
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isAgent(existing().agentId) && isValidId(paymentId);
+      allow list: if isSignedIn() && resource.data.agentId == request.auth.uid;
+      allow create: if isSignedIn() && isValidPayment(incoming()) && isValidId(paymentId) &&
+                    exists(/databases/$(database)/documents/clients/$(incoming().clientId));
+      allow update: if false;
+      allow delete: if isAgent(existing().agentId);
+    }
+
+    // 5. Reminder Validation
+    function isValidReminder(data) {
+      return data.keys().hasAll(['clientId', 'clientName', 'agentId', 'dueDate', 'note', 'completed', 'createdAt']) &&
+             data.keys().size() <= 8 &&
+             data.clientId is string &&
+             data.clientName is string &&
+             data.agentId == request.auth.uid &&
+             data.dueDate is timestamp &&
+             data.note is string && data.note.size() <= 500 &&
+             data.completed is bool &&
+             data.createdAt == request.time;
+    }
+
+    match /reminders/{reminderId} {
+      allow get: if isAgent(existing().agentId) && isValidId(reminderId);
+      allow list: if isSignedIn() && resource.data.agentId == request.auth.uid;
+      allow create: if isSignedIn() && isValidReminder(incoming()) && isValidId(reminderId);
+      allow update: if isAgent(existing().agentId) && isValidReminder(incoming()) &&
+                    incoming().agentId == existing().agentId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'dueDate', 'note']);
+      allow delete: if isAgent(existing().agentId);
+    }
+  }
+}
